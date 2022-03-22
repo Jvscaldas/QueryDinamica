@@ -19,7 +19,7 @@ INSERT INTO produto VALUES (5, 'tesoura', 5.00);
 INSERT INTO produto VALUES (6, 'estojo', 9.00);
 
 CREATE TABLE entrada(
-codigo_transacao	INT NOT NULL,
+codigo_transacao	CHAR(1) NOT NULL,
 codigo_produto		INT NOT NULL,
 quantidade			INT NOT NULL,
 valor_total			DECIMAL(7,2),
@@ -28,7 +28,7 @@ FOREIGN KEY (codigo_produto) REFERENCES produto(codigo)
 )
 
 CREATE TABLE saida(
-codigo_transacao	INT NOT NULL,
+codigo_transacao	CHAR(1) NOT NULL,
 codigo_produto		INT NOT NULL,
 quantidade			INT NOT NULL,
 valor_total			DECIMAL(7,2),
@@ -36,42 +36,45 @@ PRIMARY KEY (codigo_transacao),
 FOREIGN KEY (codigo_produto) REFERENCES produto(codigo)
 )
 
-CREATE PROCEDURE sp_registro(
-	@codigo_transacao	INT, 
+CREATE alter PROCEDURE sp_registro(@cod INT, @nome VARCHAR(100), @valor DECIMAL(7,2),
+	@codigo_transacao	CHAR(1), 
 	@codigo_produto		INT,
 	@quantidade			INT, 
 	@saida				VARCHAR(30) OUTPUT 
 )
 AS
-	DECLARE	@cod			CHAR(1),
-			@query			VARCHAR(MAX),
-			@tabela			VARCHAR(10),
+	DECLARE	@tabela			VARCHAR(10),
 			@erro			VARCHAR(MAX),
-			@valor_total	DECIMAL(7, 2),
-			@valor_produto	DECIMAL(7, 2)
- 
-	
-	BEGIN TRY
-		IF (@cod = 'e')
+			@query			VARCHAR(MAX),
+			@valor_total	DECIMAL(7, 2)
+
+		SET @valor_total = @quantidade * @valor
+
+		IF @codigo_transacao = 'e'
 		BEGIN
 			SET @tabela = 'entrada'
-		END
-	END TRY
-	BEGIN CATCH
-		IF (@cod = 's')
+			SET @cod = @codigo_produto
+		END 
+		ELSE  
+		IF @codigo_transacao = 's'
 		BEGIN
 			SET @tabela = 'saida'
+			SET @cod = @codigo_produto
 		END
-	END CATCH
- 
-	SET @query = 'INSERT INTO '+@tabela+' VALUES ('+CAST(@codigo_transacao AS VARCHAR(5))
-					+','''+CAST(@codigo_produto AS VARCHAR(5))+','''+CAST(@quantidade AS VARCHAR(5))+','''+CAST(@valor_total AS VARCHAR(5))+ ')'
-	PRINT @query
-	BEGIN TRY
+		ELSE
+		BEGIN
+			RAISERROR('Opção de transação inválida', 16, 1)
+		END
+
+		SET @query = 'INSERT INTO '+@tabela+' VALUES ('''+@codigo_transacao+''','+CAST(@codigo_produto AS VARCHAR(5))+','
+		+CAST(@quantidade AS VARCHAR(5))+','+CAST(@valor_total AS VARCHAR(5))+')'
+
+		BEGIN TRY
+		INSERT INTO produto VALUES (@cod, @nome, @valor)
 		EXEC (@query)
-		SET @saida = UPPER(@tabela)+' inserido com sucesso'
-	END TRY
-	BEGIN CATCH
+		SET @saida =  UPPER(@tabela)+' inserido com sucesso'
+		END TRY
+		BEGIN CATCH
 		SET @erro = ERROR_MESSAGE()
 		IF (@erro LIKE '%primary%')
 		BEGIN
@@ -83,17 +86,13 @@ AS
 		END
 	END CATCH
 
+DECLARE @out VARCHAR(30)
+EXEC sp_registro 2, 'pimenta', 7.50, 's', 2, 8, @out OUTPUT
+PRINT @out
 
-
-
-DECLARE @out1 VARCHAR(30)
-EXEC sp_registro 1, 1, 10,  @out1 OUTPUT
-PRINT @out1
-	
-SELECT p.codigo, p.nome, p.valor, e.codigo_transacao, e.quantidade, e.valor_total
-FROM produto p, entrada e
-WHERE p.codigo = e.codigo_produto
-
+select * from produto
 select * from entrada
-SELECT * FROM produto
-select * from saida
+SELECT * FROM saida
+delete produto
+
+INSERT INTO entrada VALUES ('e', 1, 10, 3.5)
